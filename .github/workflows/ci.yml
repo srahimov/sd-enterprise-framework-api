@@ -1,0 +1,266 @@
+name: API Test Suite
+
+on:
+  # ─── Trigger on push to main branch ────────────────────────────────────────
+  push:
+    branches:
+      - main
+      - master
+
+  # ─── Trigger on pull requests ──────────────────────────────────────────────
+  pull_request:
+    branches:
+      - main
+      - master
+
+  # ─── Nightly full regression run ───────────────────────────────────────────
+  schedule:
+    - cron: '0 2 * * *'   # 2:00 AM UTC every day
+
+  # ─── Manual trigger with environment selection ─────────────────────────────
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to run tests against'
+        required:    true
+        default:     'qa'
+        type:        choice
+        options:
+          - local
+          - qa
+          - staging
+      test_suite:
+        description: 'Test suite to run'
+        required:    true
+        default:     'smoke'
+        type:        choice
+        options:
+          - smoke
+          - regression
+          - contract
+          - all
+
+# ─── Concurrency — cancel in-progress runs on new push ────────────────────────
+concurrency:
+  group:  ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # ─── Smoke Tests — run on every push and PR ──────────────────────────────────
+  smoke-tests:
+    name: Smoke Tests (${{ github.event.inputs.environment || 'qa' }})
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
+
+    env:
+      ENV:                ${{ github.event.inputs.environment || 'qa' }}
+      BASE_URL:           ${{ secrets.BASE_URL || 'https://automationexercise.com' }}
+      TEST_USER_EMAIL:    ${{ secrets.TEST_USER_EMAIL }}
+      TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+      NEW_USER_NAME:      'CI Test User'
+      NEW_USER_EMAIL:     ${{ secrets.NEW_USER_EMAIL || 'ci_test@example.com' }}
+      NEW_USER_PASSWORD:  ${{ secrets.NEW_USER_PASSWORD || 'CiPass@123' }}
+      API_TIMEOUT:        '15000'
+      RETRY_COUNT:        '3'
+      LOG_LEVEL:          'info'
+      CI:                 'true'
+
+    steps:
+      # ─── Checkout ────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ─── Node.js setup ────────────────────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache:        'npm'
+
+      # ─── Install dependencies ─────────────────────────────────────────────────
+      - name: Install dependencies
+        run: npm ci
+
+      # ─── Install Playwright ───────────────────────────────────────────────────
+      - name: Install Playwright
+        run: npx playwright install --with-deps
+
+      # ─── Type check ───────────────────────────────────────────────────────────
+      - name: TypeScript type check
+        run: npm run typecheck
+
+      # ─── Run smoke tests ──────────────────────────────────────────────────────
+      - name: Run smoke tests
+        run: npx playwright test --grep @smoke
+        continue-on-error: false
+
+      # ─── Upload Allure results ────────────────────────────────────────────────
+      - name: Upload Allure results
+        uses: actions/upload-artifact@v4
+        if:   always()
+        with:
+          name:            allure-results-smoke-${{ github.run_number }}
+          path:            reports/allure-results/
+          retention-days: 7
+
+      # ─── Upload JUnit results ─────────────────────────────────────────────────
+      - name: Upload JUnit results
+        uses: actions/upload-artifact@v4
+        if:   always()
+        with:
+          name:            junit-results-smoke-${{ github.run_number }}
+          path:            reports/junit/results.xml
+          retention-days: 7
+
+      # ─── Publish JUnit test summary ───────────────────────────────────────────
+      - name: Publish test summary
+        uses: mikepenz/action-junit-report@v4
+        if:   always()
+        with:
+          report_paths: reports/junit/results.xml
+          check_name:   'Smoke Test Results'
+
+      # ─── Upload logs on failure ───────────────────────────────────────────────
+      - name: Upload logs on failure
+        uses: actions/upload-artifact@v4
+        if:   failure()
+        with:
+          name:            test-logs-smoke-${{ github.run_number }}
+          path:            test-results/logs/
+          retention-days: 3
+
+  # ─── Regression Tests — run on PR and nightly ────────────────────────────────
+  regression-tests:
+    name: Regression Tests (${{ github.event.inputs.environment || 'qa' }})
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: smoke-tests
+    # Allow regression to run even if smoke-tests job was skipped
+    # but not if it failed
+    continue-on-error: false
+
+    env:
+      ENV:                ${{ github.event.inputs.environment || 'qa' }}
+      BASE_URL:           ${{ secrets.BASE_URL || 'https://automationexercise.com' }}
+      TEST_USER_EMAIL:    ${{ secrets.TEST_USER_EMAIL }}
+      TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+      NEW_USER_NAME:      'CI Regression User'
+      NEW_USER_EMAIL:     ${{ secrets.NEW_USER_EMAIL || 'ci_regression@example.com' }}
+      NEW_USER_PASSWORD:  ${{ secrets.NEW_USER_PASSWORD || 'CiReg@123' }}
+      API_TIMEOUT:        '15000'
+      RETRY_COUNT:        '3'
+      LOG_LEVEL:          'info'
+      CI:                 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache:        'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps
+
+      - name: Run regression tests
+        run: npx playwright test --grep @regression
+
+      - name: Upload Allure results
+        uses: actions/upload-artifact@v4
+        if:   always()
+        with:
+          name:            allure-results-regression-${{ github.run_number }}
+          path:            reports/allure-results/
+          retention-days: 14
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        if:   always()
+        with:
+          name:            html-report-regression-${{ github.run_number }}
+          path:            reports/html/
+          retention-days: 14
+
+      - name: Upload JUnit results
+        uses: actions/upload-artifact@v4
+        if:   always()
+        with:
+          name:            junit-results-regression-${{ github.run_number }}
+          path:            reports/junit/results.xml
+          retention-days: 14
+
+      - name: Publish test summary
+        uses: mikepenz/action-junit-report@v4
+        if:   always()
+        with:
+          report_paths: reports/junit/results.xml
+          check_name:   'Regression Test Results'
+
+      - name: Upload logs on failure
+        uses: actions/upload-artifact@v4
+        if:   failure()
+        with:
+          name:            test-logs-regression-${{ github.run_number }}
+          path:            test-results/logs/
+          retention-days: 7
+
+  # ─── Contract Tests — run on PR ───────────────────────────────────────────────
+  contract-tests:
+    name: Contract Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'schedule'
+    needs: smoke-tests
+
+    env:
+      ENV:                qa
+      BASE_URL:           ${{ secrets.BASE_URL || 'https://automationexercise.com' }}
+      TEST_USER_EMAIL:    ${{ secrets.TEST_USER_EMAIL }}
+      TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+      NEW_USER_EMAIL:     ${{ secrets.NEW_USER_EMAIL || 'ci_contract@example.com' }}
+      NEW_USER_PASSWORD:  ${{ secrets.NEW_USER_PASSWORD || 'CiCon@123' }}
+      NEW_USER_NAME:      'CI Contract User'
+      API_TIMEOUT:        '15000'
+      RETRY_COUNT:        '3'
+      LOG_LEVEL:          'info'
+      CI:                 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache:        'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps
+
+      - name: Run contract tests
+        run: npx playwright test --grep @contract
+
+      - name: Upload contract test results
+        uses: actions/upload-artifact@v4
+        if:   always()
+        with:
+          name:            contract-test-results-${{ github.run_number }}
+          path:            reports/junit/results.xml
+          retention-days: 14
+
+      - name: Publish contract test summary
+        uses: mikepenz/action-junit-report@v4
+        if:   always()
+        with:
+          report_paths: reports/junit/results.xml
+          check_name:   'Contract Test Results'
