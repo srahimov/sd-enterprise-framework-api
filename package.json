@@ -1,0 +1,59 @@
+{
+  "name": "sd-enterprise-framework-api",
+  "version": "1.0.0",
+  "description": "Enterprise-level API Testing Framework using Playwright + TypeScript",
+  "author": "QA Engineering Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "scripts": {
+    "pretest": "ts-node scripts/cleanReports.ts",
+    "test": "cross-env ENV=local playwright test",
+    "test:qa": "cross-env ENV=qa playwright test",
+    "test:staging": "cross-env ENV=staging playwright test",
+    "test:auth": "cross-env ENV=local playwright test --grep @auth",
+    "test:users": "cross-env ENV=local playwright test --grep @users",
+    "test:products": "cross-env ENV=local playwright test --grep @products",
+    "test:brands": "cross-env ENV=local playwright test --grep @brands",
+    "test:search": "cross-env ENV=local playwright test --grep @search",
+    "test:negative": "cross-env ENV=local playwright test --grep @negative",
+    "test:contract": "cross-env ENV=local playwright test --grep @contract",
+    "test:smoke": "cross-env ENV=local playwright test --grep @smoke",
+    "test:regression": "cross-env ENV=local playwright test --grep @regression",
+    "test:ci": "cross-env ENV=qa playwright test --reporter=allure-playwright,html,junit",
+    "report:allure:generate": "allure generate reports/allure-results --clean -o reports/allure-report",
+    "report:allure:open": "allure open reports/allure-report",
+    "report:allure:serve": "allure serve reports/allure-results",
+    "report:html:open": "playwright show-report reports/html",
+    "clean": "ts-node scripts/cleanReports.ts",
+    "seed": "ts-node scripts/seedTestData.ts",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "allure-js-commons": "^2.15.1",
+    "dotenv": "^16.4.1",
+    "winston": "^3.11.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "^8.4.1",
+    "@playwright/test": "^1.44.0",
+    "@types/node": "^20.12.7",
+    "@typescript-eslint/eslint-plugin": "^7.8.0",
+    "@typescript-eslint/parser": "^7.8.0",
+    "allure-playwright": "^2.15.1",
+    "cross-env": "^7.0.3",
+    "eslint": "^8.57.0",
+    "eslint-plugin-playwright": "^1.6.2",
+    "prettier": "^3.2.5",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.4.5"
+  }
+}

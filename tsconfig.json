@@ -1,0 +1,49 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "outDir": "./dist",
+    "rootDir": "./",
+    "sourceMap": true,
+    "declaration": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@config/*":       ["src/config/*"],
+      "@clients/*":      ["src/clients/*"],
+      "@services/*":     ["src/services/*"],
+      "@fixtures":       ["src/fixtures/index.ts"],
+      "@fixtures/*":     ["src/fixtures/*"],
+      "@schemas/*":      ["src/schemas/*"],
+      "@appTypes/*":     ["src/types/*"],
+      "@utils/*":        ["src/utils/*"],
+      "@helpers/*":      ["src/helpers/*"],
+      "@interceptors/*": ["src/interceptors/*"],
+      "@constants/*":    ["src/constants/*"],
+      "@test-data/*":    ["src/test-data/*"],
+      "@scripts/*":      ["scripts/*"]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "scripts/**/*.ts",
+    "playwright.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "reports",
+    "test-results"
+  ]
+}
